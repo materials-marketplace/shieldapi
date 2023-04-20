@@ -1,0 +1,9 @@
+[build-system]
+requires = [
+    "setuptools>=42",
+    "wheel",
+    "flask==1.1.1",
+    "python-keycloak==1.4.0",
+    "fastapi>=0.85.0"
+]
+build-backend = "setuptools.build_meta"
