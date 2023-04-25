@@ -4,7 +4,11 @@ from typing import Callable, List
 
 from flask import abort, request
 
-from shieldapi.keycloak_utils import get_keycloak_openid
+from shieldapi.keycloak_utils import (
+    check_role,
+    check_token_validity,
+    get_keycloak_openid,
+)
 
 
 def get_access_token():
@@ -65,9 +69,9 @@ def login_required(fn: Callable) -> Callable:
         if not access_token:
             abort(401)
 
-        token_info = get_keycloak_openid().introspect(access_token)
+        valid = check_token_validity(access_token)
 
-        if not token_info["active"]:
+        if not valid:
             abort(401)
 
         return fn(*args, **kwargs)
@@ -94,12 +98,7 @@ def admin_required(fn: Callable) -> Callable:
         if not access_token:
             abort(401)
 
-        token_info = get_keycloak_openid().introspect(access_token)
-
-        if not token_info["active"]:
-            abort(401)
-
-        if not ("roles" in token_info and "admin" in token_info["roles"]):
+        if not check_role(access_token, "admin"):
             abort(403)
 
         return fn(*args, **kwargs)
@@ -107,9 +106,41 @@ def admin_required(fn: Callable) -> Callable:
     return decorated_view
 
 
+def role_required(role: str) -> Callable:
+    """
+    Decorator that limits access to users with a certain role.
+
+    Args:
+        role (str):
+            The required role.
+
+    Returns:
+        Callable:
+            The decorator function.
+    """
+
+    def decorator(f: Callable) -> Callable:
+        @wraps(f)
+        def restricted_function(*args, **kwargs):
+            access_token = get_access_token()
+            if not access_token:
+                abort(401)
+
+            if not check_role(access_token, role):
+                abort(403)
+
+            res = f(*args, **kwargs)
+
+            return res
+
+        return restricted_function
+
+    return decorator
+
+
 def has_scope(scope_list: List[str]) -> Callable:
     """
-    Create a decorator that limits access to the applications which have been
+    Decorator that limits access to the applications which have been
     granted the required scopes.
 
     Args:
