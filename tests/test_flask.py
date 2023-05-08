@@ -15,7 +15,7 @@ def login():
     return MESSAGE
 
 
-def test_flask(requests_mock):
+def test_flask(mock_introspect, requests_mock):
     """Pytest for token verification through Keycloak-mock."""
     register_mock(requests_mock)
     client = app.test_client()
