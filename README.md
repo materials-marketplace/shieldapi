@@ -48,7 +48,7 @@ In order to successfully enable the callback for the token-generation and token-
 | `KEYCLOAK_HOST`                 | Hostname of the the Keycloak instance                                                                      | "http://localhost:8080"                |
 | `KEYCLOAK_REALM_NAME`           | Realm name you set under step 2 in the previous chapter                                                    | "my_realm"                             |
 | `KEYCLOAK_CLIENT_ID`            | Client ID you created under step 3.                                                                        | "shieldapi"                            |
-| `KEYCLOAK_CLIENT_SECRET_KEY`    | Client secret you created under step 3 (`access_type` should be set to "confidential").                    | "1169a83e-a237-40ad-90db-8b8d4848de09" |
+| `KEYCLOAK_CLIENT_SECRET`        | Client secret you created under step 3 (`access_type` should be set to "confidential").                    | "1169a83e-a237-40ad-90db-8b8d4848de09" |
 | `KEYCLOAK_VERIFY_HOST`          | Controls whether SSL certificates are verified for HTTPS requests. Default is set to `False`.              | "True"                                 |
 | `KEYCLOAK_REALM_ADMIN_USER`     | User name of the realm admin, if any action shall be performed as admin in your Flask/FastAPI application. | "admin"                                |
 | `KEYCLOAK_REALM_ADMIN_PASSWORD` | Password of the realm admin, if any action shall be performed as admin in your Flask/FastAPI application.  | "admin_password"                       |

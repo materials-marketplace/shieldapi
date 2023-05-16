@@ -12,7 +12,7 @@ def get_keycloak_openid(
     server_url: Optional[str] = None,
     realm_name: Optional[str] = None,
     client_id: Optional[str] = None,
-    client_secret_key: Optional[str] = None,
+    client_secret: Optional[str] = None,
     verify: Optional[bool] = None,
 ) -> KeycloakOpenID:
     """
@@ -28,9 +28,9 @@ def get_keycloak_openid(
         client_id (Optional[str]):
             The id of the client in Keycloak. If not provided, the value from the environment
             variable KEYCLOAK_CLIENT_ID will be used.
-        client_secret_key (Optional[str]):
+        client_secret (Optional[str]):
             The client secret key for the client in Keycloak. If not provided, the value from the environment
-            variable KEYCLOAK_CLIENT_SECRET_KEY will be used.
+            variable KEYCLOAK_CLIENT_SECRET will be used.
         verify (Optional[bool]):
             Controls whether SSL certificates are verified for HTTPS requests. If set to False, SSL
             verification is disabled. If set to a string, it should be the path to a CA_BUNDLE file or
@@ -47,7 +47,7 @@ def get_keycloak_openid(
         server_url=_get_value(server_url, "KEYCLOAK_HOST"),
         realm_name=_get_value(realm_name, "KEYCLOAK_REALM_NAME"),
         client_id=_get_value(client_id, "KEYCLOAK_CLIENT_ID"),
-        client_secret_key=_get_value(client_secret_key, "KEYCLOAK_CLIENT_SECRET_KEY"),
+        client_secret=_get_value(client_secret, "KEYCLOAK_CLIENT_SECRET"),
         verify=_eval_bool(verify, "KEYCLOAK_VERIFY_HOST"),
     )
 
@@ -192,7 +192,7 @@ def check_token_validity(
     server_url: Optional[str] = None,
     realm_name: Optional[str] = None,
     client_id: Optional[str] = None,
-    client_secret_key: Optional[str] = None,
+    client_secret: Optional[str] = None,
     verify: Optional[bool] = None,
 ) -> bool:
     """Check if the given access token is valid.
@@ -210,9 +210,9 @@ def check_token_validity(
         client_id (Optional[str]):
             The id of the client in Keycloak. If not provided, the value from the environment
             variable KEYCLOAK_CLIENT_ID will be used.
-        client_secret_key (Optional[str]):
+        client_secret (Optional[str]):
             The client secret key for the client in Keycloak. If not provided, the value from the environment
-            variable KEYCLOAK_CLIENT_SECRET_KEY will be used.
+            variable KEYCLOAK_CLIENT_SECRET will be used.
         verify (Optional[bool]):
             Controls whether SSL certificates are verified for HTTPS requests. If set to False, SSL
             verification is disabled. If set to a string, it should be the path to a CA_BUNDLE file or
@@ -222,7 +222,7 @@ def check_token_validity(
         bool: Whether the token is valid.
     """
     token_info = get_keycloak_openid(
-        server_url, realm_name, client_id, client_secret_key, verify
+        server_url, realm_name, client_id, client_secret, verify
     ).introspect(access_token)
 
     return _check_active_token(token_info)
@@ -245,7 +245,7 @@ def check_useraccount_access(
     server_url: Optional[str] = None,
     realm_name: Optional[str] = None,
     client_id: Optional[str] = None,
-    client_secret_key: Optional[str] = None,
+    client_secret: Optional[str] = None,
     verify: Optional[bool] = None,
 ) -> str:
     """
@@ -264,9 +264,9 @@ def check_useraccount_access(
         client_id (Optional[str]):
             The id of the client in Keycloak. If not provided, the value from the environment
             variable KEYCLOAK_CLIENT_ID will be used.
-        client_secret_key (Optional[str]):
+        client_secret (Optional[str]):
             The client secret key for the client in Keycloak. If not provided, the value from the environment
-            variable KEYCLOAK_CLIENT_SECRET_KEY will be used.
+            variable KEYCLOAK_CLIENT_SECRET will be used.
         verify (Optional[bool]):
             Controls whether SSL certificates are verified for HTTPS requests. If set to False, SSL
             verification is disabled. If set to a string, it should be the path to a CA_BUNDLE file or
@@ -276,7 +276,7 @@ def check_useraccount_access(
         str: A string indicating whether or not the access token has the 'openid' scope.
     """
     token_info = get_keycloak_openid(
-        server_url, realm_name, client_id, client_secret_key, verify
+        server_url, realm_name, client_id, client_secret, verify
     ).introspect(access_token)
     granted_scope = token_info.json()["scope"].split()
     if "openid" not in granted_scope:
@@ -290,7 +290,7 @@ def login(
     server_url: Optional[str] = None,
     realm_name: Optional[str] = None,
     client_id: Optional[str] = None,
-    client_secret_key: Optional[str] = None,
+    client_secret: Optional[str] = None,
     verify: Optional[bool] = None,
 ) -> str:
     """
@@ -311,9 +311,9 @@ def login(
         client_id (Optional[str]):
             The id of the client in Keycloak. If not provided, the value from the environment
             variable KEYCLOAK_CLIENT_ID will be used.
-        client_secret_key (Optional[str]):
+        client_secret (Optional[str]):
             The client secret key for the client in Keycloak. If not provided, the value from the environment
-            variable KEYCLOAK_CLIENT_SECRET_KEY will be used.
+            variable KEYCLOAK_CLIENT_SECRET will be used.
         verify (Optional[Union[bool, str]]):
             Controls whether SSL certificates are verified for HTTPS requests. If set to False, SSL
             verification is disabled. If set to a string, it should be the path to a CA_BUNDLE file or
@@ -325,7 +325,7 @@ def login(
             a tuple containing the status code and an error message.
     """
     token = get_keycloak_openid(
-        server_url, realm_name, client_id, client_secret_key, verify
+        server_url, realm_name, client_id, client_secret, verify
     ).token(username=username, password=password)
     if not token.get("access_token") and token.get("token_type"):
         return 401, "Token could not be generated. Please contact the admin."
@@ -339,7 +339,7 @@ def make_auth_header(
     server_url: Optional[str] = None,
     realm_name: Optional[str] = None,
     client_id: Optional[str] = None,
-    client_secret_key: Optional[str] = None,
+    client_secret: Optional[str] = None,
     verify: Optional[bool] = None,
 ) -> Union[int, Tuple[int, str]]:
     """
@@ -360,9 +360,9 @@ def make_auth_header(
         client_id (Optional[str]):
             The id of the client in Keycloak. If not provided, the value from the environment
             variable KEYCLOAK_CLIENT_ID will be used.
-        client_secret_key (Optional[str]):
+        client_secret (Optional[str]):
             The client secret key for the client in Keycloak. If not provided, the value from the environment
-            variable KEYCLOAK_CLIENT_SECRET_KEY will be used.
+            variable KEYCLOAK_CLIENT_SECRET will be used.
         verify (Optional[bool]):
             Controls whether SSL certificates are verified for HTTPS requests. If set to False, SSL
             verification is disabled. If set to a string, it should be the path to a CA_BUNDLE file or
@@ -380,7 +380,7 @@ def make_auth_header(
         server_url,
         realm_name,
         client_id,
-        client_secret_key,
+        client_secret,
         verify,
     )
     if type(credentials) == str:
