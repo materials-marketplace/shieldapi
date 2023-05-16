@@ -170,6 +170,23 @@ def _eval_bool(var: Any, env_var: str) -> Optional[bool]:
         return boolean
 
 
+def check_role(token: str, role: str) -> bool:
+    """Check if a token contains a certain role
+
+    Args:
+        token (str): token from a user
+        role (str): role to be checked
+
+    Returns:
+        bool: whether the token contains the role
+    """
+    token_info = get_keycloak_openid().introspect(token)
+    valid_token = _check_active_token(token_info)
+    if valid_token:
+        return "roles" in token_info and role in token_info["roles"]
+    return False
+
+
 def check_token_validity(
     access_token: str,
     server_url: Optional[str] = None,
@@ -177,7 +194,7 @@ def check_token_validity(
     client_id: Optional[str] = None,
     client_secret_key: Optional[str] = None,
     verify: Optional[bool] = None,
-) -> str:
+) -> bool:
     """Check if the given access token is valid.
 
     Args:
@@ -202,15 +219,25 @@ def check_token_validity(
             a directory containing certificates of trusted CA.
 
     Returns:
-        str: If the token is valid, returns the string "valid". Otherwise, returns the string "Invalid Token".
+        bool: Whether the token is valid.
     """
     token_info = get_keycloak_openid(
         server_url, realm_name, client_id, client_secret_key, verify
     ).introspect(access_token)
 
-    if not token_info.json()["active"]:
-        return "Invalid Token"
-    return "valid"
+    return _check_active_token(token_info)
+
+
+def _check_active_token(token_info) -> bool:
+    """Checks if a given token introspect information is marked as valid
+
+    Args:
+        token_info (Any): output from the introspect request
+
+    Returns:
+        bool: Whether the token is valid
+    """
+    return bool(token_info.json()["active"])
 
 
 def check_useraccount_access(
@@ -348,7 +375,13 @@ def make_auth_header(
 
     """
     credentials = login(
-        username, password, server_url, realm_name, client_id, client_secret_key, verify
+        username,
+        password,
+        server_url,
+        realm_name,
+        client_id,
+        client_secret_key,
+        verify,
     )
     if type(credentials) == str:
         return {"Authorization": credentials}
