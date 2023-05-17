@@ -46,7 +46,7 @@ def get_keycloak_openid(
         realm_name=_get_value(realm_name, "KEYCLOAK_REALM_NAME"),
         client_id=_get_value(client_id, "KEYCLOAK_CLIENT_ID", "shieldapi"),
         client_secret_key=_get_value(client_secret, "KEYCLOAK_CLIENT_SECRET"),
-        verify=_eval_bool(verify, "KEYCLOAK_VERIFY_HOST"),
+        verify=_get_value(verify, "KEYCLOAK_VERIFY_HOST", True, True),
     )
 
 
@@ -88,11 +88,16 @@ def get_keycloak_admin(
         username=_get_value(username, "KEYCLOAK_REALM_ADMIN_USER"),
         password=_get_value(password, "KEYCLOAK_REALM_ADMIN_PASSWORD"),
         realm_name=_get_value(realm_name, "KEYCLOAK_REALM_NAME"),
-        verify=_eval_bool(verify, "KEYCLOAK_VERIFY_HOST"),
+        verify=_get_value(verify, "KEYCLOAK_VERIFY_HOST", True, True),
     )
 
 
-def _get_value(param: Any, env_var: str, default: Optional[str] = None) -> Any:
+def _get_value(
+    param: Any,
+    env_var: str,
+    default: Optional[Any] = None,
+    boolean: Optional[bool] = False,
+) -> Any:
     """Get a value by following the assignment priority.
 
     Parameters take priority over environment variables and defaults.
@@ -103,18 +108,20 @@ def _get_value(param: Any, env_var: str, default: Optional[str] = None) -> Any:
             parameter passed to the respective upstream function.
         env_var (str):
             Name of the corresponding environmental variable.
-        default (Optional[str]):
+        default (Optional[Any]):
             Default value when no others are provided
+        boolean (Optional[bool]):
+            Whether the expected values is a boolean
     Returns:
         Any: The value of the Python-object (preferred) or its respective env-variable.
         The latter can also resolve into a `None`, if not set.
 
     Raises:
        UserWarning: If both the parameter and env-variable are set.
-
-       ValueError: If both the parameter and env-variable are None.
+       ValueError: If both the parameter and env-variable are None, or a boolean
     """
     env = os.environ.get(env_var)
+
     if (param or isinstance(param, bool)) and env:
         message = f"""Both the kwarg ({param}) and the env-variable for '{env_var}' ({env}) are assigned.
         Note that the argument takes precedence over the env-variable."""
@@ -123,41 +130,22 @@ def _get_value(param: Any, env_var: str, default: Optional[str] = None) -> Any:
         message = f"""Both the kwarg and the env-variable for '{env_var}' are None.
         Please assign one of them to a value."""
         raise ValueError(message)
+
     if isinstance(param, bool):
         return param
     else:
+        if boolean and env:
+            try:
+                env = literal_eval(env)
+                if not isinstance(env, bool):
+                    raise ValueError
+            except (ValueError, SyntaxError):
+                message = (
+                    f"The '{env_var}' env-var valued '{env}' must be 'True' or 'False'."
+                )
+                print(message, flush=True)
+                raise TypeError(message)
         return param or env or default
-
-
-def _eval_bool(var: Any, env_var: str) -> Optional[bool]:
-    """Execute the `_get_value`-helper function and evaluate if
-    the value of the environment variable is a string matching to a bool.
-
-    Args:
-        var (Any):
-            Python-object passed to the respective upstream function.
-        env_var (str):
-            Name of the corresponding environmental variable.
-    Returns:
-        Optional[bool]:
-            The evaluated value of the environment variable as a boolean, or None
-            if the environment variable does not exist.
-    Raises:
-        TypeError: If the value of the environmental variable cannot be evaluated or it
-        can be evaluated but is not an instance of <bool>.
-    """
-    boolean = _get_value(var, env_var)
-    if isinstance(boolean, str):
-        try:
-            value = literal_eval(boolean)
-            assert isinstance(value, bool)
-            return value
-        except (ValueError, AssertionError, SyntaxError):
-            message = f"""Env-variable '{env_var}' valued '{boolean}' is not a boolean.
-            Must be valued 'True' or 'False'."""
-            raise TypeError(message)
-    elif isinstance(boolean, bool):
-        return boolean
 
 
 def check_role(token: str, role: str) -> bool:

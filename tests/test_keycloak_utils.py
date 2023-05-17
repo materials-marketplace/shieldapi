@@ -94,9 +94,10 @@ def test_keycloak_typeerror_bool(var, test_input, func, requests_mock):
     `KEYCLOAK_VERIFY_HOST`."""
     register_mock(requests_mock)
     os.environ["KEYCLOAK_VERIFY_HOST"] = test_input
-    match = "Env-variable 'KEYCLOAK_VERIFY_HOST' valued"
+    match = f"The 'KEYCLOAK_VERIFY_HOST' env-var valued"
     if not isinstance(var, bool):
         with pytest.raises(TypeError, match=match):
+            print(match, flush=True)
             no_warning_raised(func)
     else:
         match = f"Both the kwarg ({var}) and the env-variable for 'KEYCLOAK_VERIFY_HOST' ({test_input}) are assigned."
@@ -118,11 +119,5 @@ def test_keycloak_warning_bool(var, env_var, func, requests_mock):
     if isinstance(var, bool) and env_var:
         match = f"Both the kwarg ({var}) and the env-variable for 'KEYCLOAK_VERIFY_HOST' ({env_var}) are assigned."
         warning_raised(func, match, kwargs={"verify": var})
-    elif var is None and env_var is None:
-        match = (
-            "Both the kwarg and the env-variable for 'KEYCLOAK_VERIFY_HOST' are None."
-        )
-        with pytest.raises(ValueError, match=match):
-            no_warning_raised(func, kwargs={"verify": var})
     else:
         no_warning_raised(func, kwargs={"verify": var})
