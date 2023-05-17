@@ -215,7 +215,7 @@ def _check_active_token(token_info) -> bool:
     Returns:
         bool: Whether the token is valid
     """
-    return bool(token_info.json()["active"])
+    return bool(token_info["active"])
 
 
 def check_useraccount_access(
