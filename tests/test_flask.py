@@ -1,4 +1,5 @@
 """Pytest fixture for testing shieldapi in flask"""
+
 from flask import Flask
 
 from shieldapi.frameworks.flask import login_required

@@ -1,4 +1,5 @@
 """Dependencies and classes for shieldapi in FastAPI."""
+
 import os
 
 from fastapi import HTTPException, Request
