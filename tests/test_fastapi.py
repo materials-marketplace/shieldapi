@@ -1,4 +1,5 @@
 """Pytest fixture for testing shieldapi in fastapi """
+
 import re
 
 import pytest
