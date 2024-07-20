@@ -46,7 +46,7 @@ def get_keycloak_openid(
         realm_name=_get_value(realm_name, "KEYCLOAK_REALM_NAME"),
         client_id=_get_value(client_id, "KEYCLOAK_CLIENT_ID", "shieldapi"),
         client_secret_key=_get_value(client_secret, "KEYCLOAK_CLIENT_SECRET"),
-        verify=_get_value(verify, "KEYCLOAK_VERIFY_HOST", True, True),
+        verify=_get_value(verify, "KEYCLOAK_VERIFY_HOST", False, True),
     )
 
 
@@ -88,7 +88,7 @@ def get_keycloak_admin(
         username=_get_value(username, "KEYCLOAK_REALM_ADMIN_USER"),
         password=_get_value(password, "KEYCLOAK_REALM_ADMIN_PASSWORD"),
         realm_name=_get_value(realm_name, "KEYCLOAK_REALM_NAME"),
-        verify=_get_value(verify, "KEYCLOAK_VERIFY_HOST", True, True),
+        verify=_get_value(verify, "KEYCLOAK_VERIFY_HOST", False, True),
     )
 
 
