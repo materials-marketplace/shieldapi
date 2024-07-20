@@ -1,4 +1,5 @@
 """Pytest for `keycloak_utils` of the shieldapi package."""
+
 import os
 import warnings
 from ast import literal_eval

@@ -1,4 +1,5 @@
 """functions and decorators for shieldapi in Flask."""
+
 from functools import wraps
 from typing import Callable, List
 
