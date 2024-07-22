@@ -389,18 +389,18 @@ def make_auth_header(
         return credentials
 
 
-def get_userinfo() -> dict:
+def get_userinfo(token) -> dict:
     """
     Returns the user information from the access token.
+
+    Args:
+        token: str
+            The access token of the user.
 
     Returns:
         dict:
             The user information.
     """
-    token = get_access_token()
-    if not token:
-        logger.warning("get_userinfo: No access token found")
-        return {}
     userinfo = get_keycloak_openid().userinfo(token)
     logger.debug(f"get_userinfo: Retrieved user info {userinfo}")
     return userinfo
