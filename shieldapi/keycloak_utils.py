@@ -7,6 +7,31 @@ from typing import Any, Optional, Tuple, Union
 
 from keycloak import KeycloakAdmin, KeycloakOpenID
 
+from shieldapi import logger
+
+
+def print_env_vars():
+    env_vars = {
+        "KEYCLOAK_HOST": os.environ.get("KEYCLOAK_HOST"),
+        "KEYCLOAK_REALM_NAME": os.environ.get("KEYCLOAK_REALM_NAME"),
+        "KEYCLOAK_CLIENT_ID": os.environ.get("KEYCLOAK_CLIENT_ID"),
+        "KEYCLOAK_CLIENT_SECRET": os.environ.get("KEYCLOAK_CLIENT_SECRET"),
+        "KEYCLOAK_VERIFY_HOST": os.environ.get("KEYCLOAK_VERIFY_HOST"),
+        "KEYCLOAK_REALM_ADMIN_USER": os.environ.get("KEYCLOAK_REALM_ADMIN_USER"),
+        "KEYCLOAK_REALM_ADMIN_PASSWORD": os.environ.get(
+            "KEYCLOAK_REALM_ADMIN_PASSWORD"
+        ),
+    }
+
+    logger.info("Environment variables received:")
+
+    for key, value in env_vars.items():
+        if value and key in {"KEYCLOAK_CLIENT_SECRET", "KEYCLOAK_REALM_ADMIN_PASSWORD"}:
+            masked_value = value[:4] + "*" * (len(value) - 4)
+            logger.info(f"{key}: {masked_value}")
+        else:
+            logger.info(f"{key}: {value}")
+
 
 def get_keycloak_openid(
     server_url: Optional[str] = None,
@@ -38,7 +63,7 @@ def get_keycloak_openid(
     Raises:
         KeyError: If any required values are missing.
     """
-
+    logger.debug("Creating KeycloakOpenID instance")
     return KeycloakOpenID(
         server_url=_get_value(
             server_url, "KEYCLOAK_HOST", "http://keycloak:8080/auth/"
@@ -81,6 +106,7 @@ def get_keycloak_admin(
         KeyError:
             If any required values are missing.
     """
+    logger.debug("Creating KeycloakAdmin instance")
     return KeycloakAdmin(
         server_url=_get_value(
             server_url, "KEYCLOAK_HOST", "http://keycloak:8080/auth/"
@@ -126,9 +152,11 @@ def _get_value(
         message = f"""Both the kwarg ({param}) and the env-variable for '{env_var}' ({env}) are assigned.
         Note that the argument takes precedence over the env-variable."""
         warnings.warn(UserWarning(message))
+        logger.warning(message)
     elif param is None and env is None and default is None:
         message = f"""Both the kwarg and the env-variable for '{env_var}' are None.
         Please assign one of them to a value."""
+        logger.error(message)
         raise ValueError(message)
 
     if isinstance(param, bool):
@@ -143,6 +171,7 @@ def _get_value(
                 message = (
                     f"The '{env_var}' env-var valued '{env}' must be 'True' or 'False'."
                 )
+                logger.error(message)
                 print(message, flush=True)
                 raise TypeError(message)
         return param or env or default
@@ -158,64 +187,44 @@ def check_role(token: str, role: str) -> bool:
     Returns:
         bool: whether the token contains the role
     """
+    logger.info(f"Checking role '{role}' for token")
     token_info = get_keycloak_openid().introspect(token)
-    valid_token = _check_active_token(token_info)
-    if valid_token:
-        return "roles" in token_info and role in token_info["roles"]
+    if bool(token_info["active"]):
+        has_role = "roles" in token_info and role in token_info["roles"]
+        logger.debug(f"Token has role '{role}': {has_role}")
+        return has_role
     return False
 
 
 def check_token_validity(
-    access_token: str,
-    server_url: Optional[str] = None,
-    realm_name: Optional[str] = None,
-    client_id: Optional[str] = None,
-    client_secret: Optional[str] = None,
-    verify: Optional[bool] = None,
+    access_token: str, validate_with_auth_server: Optional[bool] = True
 ) -> bool:
     """Check if the given access token is valid.
 
     Args:
         access_token: str
             The access token to check.
-    Kwargs:
-        server_url (Optional[str]):
-            The URL of the Keycloak server. If not provided, the value from the environment variable
-            KEYCLOAK_HOST will be used.
-        realm_name (Optional[str]):
-            The name of the realm in Keycloak. If not provided, the value from the environment variable
-            KEYCLOAK_REALM_NAME will be used.
-        client_id (Optional[str]):
-            The id of the client in Keycloak. If not provided, the value from the environment
-            variable KEYCLOAK_CLIENT_ID will be used.
-        client_secret (Optional[str]):
-            The client secret key for the client in Keycloak. If not provided, the value from the environment
-            variable KEYCLOAK_CLIENT_SECRET will be used.
-        verify (Optional[bool]):
-            Controls whether SSL certificates are verified for HTTPS requests. If set to False, SSL
-            verification is disabled. If set to a string, it should be the path to a CA_BUNDLE file or
-            a directory containing certificates of trusted CA.
+        validate_with_auth_server: boolean
+            Indicates whether the validation is done through the server.
 
     Returns:
         bool: Whether the token is valid.
     """
-    token_info = get_keycloak_openid(
-        server_url, realm_name, client_id, client_secret, verify
-    ).introspect(access_token)
+    logger.info("Checking token validity")
+    keycloak_openid = get_keycloak_openid()
 
-    return _check_active_token(token_info)
-
-
-def _check_active_token(token_info) -> bool:
-    """Checks if a given token introspect information is marked as valid
-
-    Args:
-        token_info (Any): output from the introspect request
-
-    Returns:
-        bool: Whether the token is valid
-    """
-    return bool(token_info["active"])
+    valid = False
+    if validate_with_auth_server:
+        token_info = keycloak_openid.introspect(access_token)
+        valid = bool(token_info["active"])
+    else:
+        try:
+            get_keycloak_openid().decode_token(access_token, validate=True)
+            valid = True
+        except Exception as e:
+            logger.warning(f"AuthTokenBearer.__call__: Token validation failed: {e}")
+    logger.debug(f"Token validity: {valid}")
+    return valid
 
 
 def check_useraccount_access(
@@ -253,13 +262,18 @@ def check_useraccount_access(
     Returns:
         str: A string indicating whether or not the access token has the 'openid' scope.
     """
+    logger.info("Checking user account access")
     token_info = get_keycloak_openid(
         server_url, realm_name, client_id, client_secret, verify
     ).introspect(access_token)
     granted_scope = token_info.json()["scope"].split()
     if "openid" not in granted_scope:
-        return "openid scope not granted!", 401
-    return "Has access!", 200
+        message = "OpenID scope was not granted"
+        logger.warning(message)
+        return message, 401
+    message = "Access granted"
+    logger.info(message)
+    return message, 200
 
 
 def login(
@@ -302,13 +316,18 @@ def login(
             If successful, returns a string representing the access token. Otherwise, returns
             a tuple containing the status code and an error message.
     """
+    logger.info("Logging in user")
     token = get_keycloak_openid(
         server_url, realm_name, client_id, client_secret, verify
     ).token(username=username, password=password)
     if not token.get("access_token") and token.get("token_type"):
-        return 401, "Token could not be generated. Please contact the admin."
+        message = "Token could not be generated. Please contact the admin."
+        logger.error(message)
+        return 401, message
     else:
-        return f"{token.get('token_type')} {token.get('access_token')}"
+        token_str = f"{token.get('token_type')} {token.get('access_token')}"
+        logger.info("Token generated successfully")
+        return token_str
 
 
 def make_auth_header(
@@ -352,6 +371,7 @@ def make_auth_header(
             Otherwise, a tuple containing a status code and an error message.
 
     """
+    logger.info("Making authentication header")
     credentials = login(
         username,
         password,
@@ -362,6 +382,42 @@ def make_auth_header(
         verify,
     )
     if type(credentials) == str:
+        logger.info("Authentication header created successfully")
         return {"Authorization": credentials}
     else:
+        logger.error("Failed to create authentication header")
         return credentials
+
+
+def get_userinfo() -> dict:
+    """
+    Returns the user information from the access token.
+
+    Returns:
+        dict:
+            The user information.
+    """
+    token = get_access_token()
+    if not token:
+        logger.warning("get_userinfo: No access token found")
+        return {}
+    userinfo = get_keycloak_openid().userinfo(token)
+    logger.debug(f"get_userinfo: Retrieved user info {userinfo}")
+    return userinfo
+
+
+def get_current_user() -> str:
+    """
+    Get the current logged in user.
+
+    Returns:
+        str:
+            The user ID.
+    """
+    user_info = get_userinfo()
+    if not user_info:
+        logger.warning("get_current_user: No user info available")
+        return ""
+    user_id = user_info.get("sub", "")
+    logger.debug(f"get_current_user: Current user ID {user_id}")
+    return user_id
