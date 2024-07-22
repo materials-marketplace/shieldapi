@@ -59,7 +59,7 @@ class AuthTokenBearer(HTTPBearer):
             )
 
         if not check_token_validity(auth.credentials):
-            logger.warning(f"AuthTokenBearer.__call__: Token validation failed: {e}")
+            logger.warning(f"AuthTokenBearer.__call__: Token validation failed")
             raise HTTPException(status_code=401, detail="Token validation failed")
         return f"Bearer {auth.credentials}"
 
