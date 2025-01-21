@@ -52,6 +52,10 @@ In order to successfully enable the callback for the token-generation and token-
 | `KEYCLOAK_VERIFY_HOST`          | Controls whether SSL certificates are verified for HTTPS requests. Default is set to `False`.              | "True"                                 |
 | `KEYCLOAK_REALM_ADMIN_USER`     | User name of the realm admin, if any action shall be performed as admin in your Flask/FastAPI application. | "admin"                                |
 | `KEYCLOAK_REALM_ADMIN_PASSWORD` | Password of the realm admin, if any action shall be performed as admin in your Flask/FastAPI application.  | "admin_password"                       |
+| `SKIP_ENV_CHECK`                | Optional. If set, skips the check for mandatory environment variables during startup.                      | "True"                                    |
+
+#### Note
+- If `SKIP_ENV_CHECK` is set, the application will bypass the mandatory environment variable checks during startup. This is useful for development or testing scenarios where not all variables are needed.
 
 ## Usage with Flask
 
@@ -381,4 +385,4 @@ This work is supported by the MarketPlace project funded by [Horizon 2020](https
 ## License
 
 The code is licensed under BSD-3-Clause.
-Copyright © 2023 Materials MarketPlace
+Copyright © 2025 Materials MarketPlace

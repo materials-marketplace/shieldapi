@@ -6,7 +6,8 @@ from fastapi import HTTPException, Request
 from fastapi.security import HTTPBasic, HTTPBasicCredentials, HTTPBearer
 from pydantic import BaseModel
 
-from shieldapi.keycloak_utils import get_keycloak_openid, login
+from shieldapi import logger
+from shieldapi.keycloak_utils import check_token_validity, get_keycloak_openid, login
 
 
 class Auth(str):
@@ -47,18 +48,19 @@ class AuthTokenBearer(HTTPBearer):
             HTTPException:
                 If the authentication token is missing or expired.
         """
+        logger.debug("AuthTokenBearer.__call__: Starting token extraction")
         auth = await super().__call__(request=request)
 
         if not auth.credentials:
+            logger.warning("AuthTokenBearer.__call__: Missing access token")
             raise HTTPException(
                 status_code=401,
                 detail="An access token is expected but has not been provided",
             )
 
-        token_info = get_keycloak_openid().introspect(auth.credentials)
-        if not token_info["active"]:
-            raise HTTPException(status_code=401, detail="The access token is expired")
-
+        if not check_token_validity(auth.credentials):
+            logger.warning(f"AuthTokenBearer.__call__: Token validation failed")
+            raise HTTPException(status_code=401, detail="Token validation failed")
         return f"Bearer {auth.credentials}"
 
 
@@ -80,6 +82,9 @@ class BasicLoginCredentials(HTTPBasicCredentials):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        logger.debug(
+            f"BasicLoginCredentials.__init__: Initialized with username={self.username}"
+        )
 
     @property
     def token(self, **kwargs) -> Auth:
@@ -95,10 +100,19 @@ class BasicLoginCredentials(HTTPBasicCredentials):
             HTTPException:
                 If the authentication credentials are invalid.
         """
+        logger.debug(
+            f"BasicLoginCredentials.token: Attempting login for username={self.username}"
+        )
         token = login(self.username, self.password)
         if len(token) == 2:
+            logger.error(
+                f"BasicLoginCredentials.token: Invalid credentials for username={self.username}"
+            )
             raise HTTPException(status_code=token[0], detail=token[1])
         else:
+            logger.info(
+                f"BasicLoginCredentials.token: Login successful for username={self.username}"
+            )
             return token
 
 
@@ -134,11 +148,21 @@ class BasicLogin(HTTPBasic):
             HTTPException:
                 If the authentication credentials are invalid.
         """
+        logger.debug("BasicLogin.__call__: Extracting credentials from request")
         log = await super().__call__(request=request)
+        logger.debug(
+            f"BasicLogin.__call__: Credentials extracted for username={log.username}"
+        )
         token = login(log.username, log.password)
         if len(token) == 2:
+            logger.error(
+                f"BasicLogin.__call__: Invalid credentials for username={log.username}"
+            )
             raise HTTPException(status_code=token[0], detail=token[1])
         else:
+            logger.info(
+                f"BasicLogin.__call__: Login successful for username={log.username}"
+            )
             return token
 
 
@@ -156,9 +180,11 @@ async def depends_basic_login(request: Request) -> Auth:
         Auth:
             A custom str-type representing the access token.
     """
+    logger.debug("depends_basic_login: Creating BasicLogin instance")
     basic = BasicLogin(
         scheme_name=os.environ.get("AUTH_BEARER_SCHEME_NAME"),
     )
+    logger.debug("depends_basic_login: Calling BasicLogin instance with request")
     return await basic(request)
 
 
@@ -176,9 +202,13 @@ async def depends_auth_token_bearer(request: Request) -> Auth:
         Auth:
             A custom str-type representing the access token.
     """
+    logger.debug("depends_auth_token_bearer: Creating AuthTokenBearer instance")
     bearer = AuthTokenBearer(
         bearerFormat=os.environ.get("AUTH_TOKEN_BEARER_FORMAT"),
         scheme_name=os.environ.get("AUTH_BEARER_SCHEME_NAME"),
         description=os.environ.get("AUTH_BEARER_DESCRIPTION"),
+    )
+    logger.debug(
+        "depends_auth_token_bearer: Calling AuthTokenBearer instance with request"
     )
     return await bearer(request)
