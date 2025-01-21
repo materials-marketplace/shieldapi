@@ -7,29 +7,28 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("shieldapi")
 
 
-def check_mandatory_env_vars():
+def check_env_vars():
     """
-    Checks if all mandatory environment variables are set.
+    Checks if all environment variables are set.
     Skips the check if SKIP_ENV_CHECK is set.
     Raises an EnvironmentError if any are missing.
     """
     # Allow skipping the check if SKIP_ENV_CHECK is set
-    skip_check = os.environ.get("SKIP_ENV_CHECK", "False")
+    skip_check = False
     try:
-        skip_check = literal_eval(skip_check)
+        skip_check = literal_eval(os.environ.get("SKIP_ENV_CHECK", "False"))
         if not isinstance(skip_check, bool):
             logger.warning(
-                f"Invalid value for SKIP_ENV_CHECK: {skip_check}. Proceeding with mandatory checks."
+                f"Invalid value for SKIP_ENV_CHECK: {skip_check}. Proceeding with environment variable checks."
             )
-            skip_check = False
     except (ValueError, SyntaxError):
         logger.warning(
-            f"Invalid value for SKIP_ENV_CHECK: {skip_check}. Proceeding with mandatory checks."
+            f"Invalid value for SKIP_ENV_CHECK: {skip_check}. Proceeding with environment variable checks."
         )
 
     if skip_check:
         logger.info(
-            "Skipping mandatory environment variable check due to SKIP_ENV_CHECK."
+            "Skipping environment variable environment variable check due to SKIP_ENV_CHECK."
         )
         return
 
@@ -43,9 +42,9 @@ def check_mandatory_env_vars():
     missing_vars = [var for var in mandatory_vars if not os.environ.get(var)]
 
     if missing_vars:
-        logger.warning(
-            "Missing mandatory environment variables: %s", ", ".join(missing_vars)
-        )
+        logger.warning("Missing environment variables: %s", ", ".join(missing_vars))
+    else:
+        logger.info("Environment variable check passed successfully.")
 
 
-check_mandatory_env_vars()
+check_env_vars()
