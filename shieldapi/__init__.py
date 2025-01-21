@@ -13,7 +13,7 @@ def check_mandatory_env_vars():
     Raises an EnvironmentError if any are missing.
     """
     # Allow skipping the check if SKIP_ENV_CHECK is set
-    if os.environ.get("SKIP_ENV_CHECK"):
+    if os.environ.get("SKIP_ENV_CHECK", "").lower() in ["1", "true", "yes"]:
         logger.info(
             "Skipping mandatory environment variable check due to SKIP_ENV_CHECK."
         )
