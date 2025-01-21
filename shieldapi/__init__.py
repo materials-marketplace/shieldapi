@@ -11,7 +11,6 @@ def check_env_vars():
     """
     Checks if all environment variables are set.
     Skips the check if SKIP_ENV_CHECK is set.
-    Raises an EnvironmentError if any are missing.
     """
     # Allow skipping the check if SKIP_ENV_CHECK is set
     skip_check = False
@@ -19,11 +18,11 @@ def check_env_vars():
         skip_check = literal_eval(os.environ.get("SKIP_ENV_CHECK", "False"))
         if not isinstance(skip_check, bool):
             logger.warning(
-                f"Invalid value for SKIP_ENV_CHECK: {skip_check}. Proceeding with environment variable checks."
+                f"Invalid value for SKIP_ENV_CHECK: {os.environ.get("SKIP_ENV_CHECK", "")}. Proceeding with environment variable checks."
             )
     except (ValueError, SyntaxError):
         logger.warning(
-            f"Invalid value for SKIP_ENV_CHECK: {skip_check}. Proceeding with environment variable checks."
+            f"Invalid value for SKIP_ENV_CHECK: {os.environ.get("SKIP_ENV_CHECK", "")}. Proceeding with environment variable checks."
         )
 
     if skip_check:
@@ -44,7 +43,7 @@ def check_env_vars():
     if missing_vars:
         logger.warning("Missing environment variables: %s", ", ".join(missing_vars))
     else:
-        logger.info("Environment variable check passed successfully.")
+        logger.info("All environment variables are set.")
 
 
 check_env_vars()
