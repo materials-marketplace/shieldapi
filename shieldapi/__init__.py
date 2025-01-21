@@ -18,11 +18,11 @@ def check_env_vars():
         skip_check = literal_eval(os.environ.get("SKIP_ENV_CHECK", "False"))
         if not isinstance(skip_check, bool):
             logger.warning(
-                f"Invalid value for SKIP_ENV_CHECK: {os.environ.get("SKIP_ENV_CHECK", "")}. Proceeding with environment variable checks."
+                f"Invalid value for SKIP_ENV_CHECK: {os.environ.get('SKIP_ENV_CHECK', '')}. Proceeding with environment variable checks."
             )
     except (ValueError, SyntaxError):
         logger.warning(
-            f"Invalid value for SKIP_ENV_CHECK: {os.environ.get("SKIP_ENV_CHECK", "")}. Proceeding with environment variable checks."
+            f"Invalid value for SKIP_ENV_CHECK: {os.environ.get('SKIP_ENV_CHECK', '')}. Proceeding with environment variable checks."
         )
 
     if skip_check:
