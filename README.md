@@ -381,4 +381,4 @@ This work is supported by the MarketPlace project funded by [Horizon 2020](https
 ## License
 
 The code is licensed under BSD-3-Clause.
-Copyright © 2024 Materials MarketPlace
+Copyright © 2025 Materials MarketPlace
