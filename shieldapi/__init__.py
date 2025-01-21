@@ -1,5 +1,6 @@
 import logging
 import os
+from ast import literal_eval
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -13,7 +14,20 @@ def check_mandatory_env_vars():
     Raises an EnvironmentError if any are missing.
     """
     # Allow skipping the check if SKIP_ENV_CHECK is set
-    if os.environ.get("SKIP_ENV_CHECK", "").lower() in ["1", "true", "yes"]:
+    skip_check = os.environ.get("SKIP_ENV_CHECK", "False")
+    try:
+        skip_check = literal_eval(skip_check)
+        if not isinstance(skip_check, bool):
+            logger.warning(
+                f"Invalid value for SKIP_ENV_CHECK: {skip_check}. Proceeding with mandatory checks."
+            )
+            skip_check = False
+    except (ValueError, SyntaxError):
+        logger.warning(
+            f"Invalid value for SKIP_ENV_CHECK: {skip_check}. Proceeding with mandatory checks."
+        )
+
+    if skip_check:
         logger.info(
             "Skipping mandatory environment variable check due to SKIP_ENV_CHECK."
         )
