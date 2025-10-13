@@ -2,7 +2,6 @@
 
 import os
 import warnings
-from ast import literal_eval
 from typing import Any, Dict, List, Optional
 
 import pytest
