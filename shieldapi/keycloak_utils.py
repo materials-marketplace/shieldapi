@@ -79,8 +79,11 @@ def get_keycloak_admin(
     server_url: Optional[str] = None,
     username: Optional[str] = None,
     password: Optional[str] = None,
+    client_id: Optional[str] = None,
+    client_secret: Optional[str] = None,
     realm_name: Optional[str] = None,
     verify: Optional[bool] = None,
+    use_service_account: Optional[bool] = None,
 ) -> KeycloakAdmin:
     """Create and return a KeycloakAdmin object with the provided credentials.
 
@@ -89,14 +92,31 @@ def get_keycloak_admin(
             The URL of the Keycloak server. If missing, $KEYCLOAK_HOST or 'http://keycloak:8080/auth/' will be used.
         username (Optional[str]):
             The username to log in with. If missing, $KEYCLOAK_REALM_ADMIN_USER will be used.
+            Only used when use_service_account is False.
         password (Optional[str]):
             The password to log in with. If missing, $KEYCLOAK_REALM_ADMIN_PASSWORD will be used.
+            Only used when use_service_account is False.
+        client_id (Optional[str]):
+            The client ID for service account authentication. If missing, $KEYCLOAK_CLIENT_ID will be used.
+            Only used when use_service_account is True.
+        client_secret (Optional[str]):
+            The client secret for service account authentication. If missing, $KEYCLOAK_CLIENT_SECRET will be used.
+            Only used when use_service_account is True.
         realm_name (Optional[str]):
             The name of the realm in Keycloak. If missing, $KEYCLOAK_REALM_NAME will be used.
         verify (Optional[bool]):
             Controls whether SSL certificates are verified for HTTPS requests. If set to False, SSL
             verification is disabled. If set to a string, it should be the path to a CA_BUNDLE file or
             a directory containing certificates of trusted CA.
+        use_service_account (Optional[bool]):
+            Whether to use service account authentication (client_id/client_secret) instead of user
+            authentication (username/password). A service account in Keycloak is a special client configuration
+            that allows applications to authenticate directly using client credentials
+            (client ID and secret) without requiring a user login, enabling secure machine-to-machine
+            (like a microservice, script, or backend job) API access.
+            If missing, $KEYCLOAK_USE_SERVICE_ACCOUNT will be used, defaults to False.
+            See also:
+            https://www.keycloak.org/docs/latest/server_development/index.html#authenticating-with-a-service-account
 
     Returns:
         KeycloakAdmin:
@@ -107,15 +127,32 @@ def get_keycloak_admin(
             If any required values are missing.
     """
     logger.debug("Creating KeycloakAdmin instance")
-    return KeycloakAdmin(
-        server_url=_get_value(
-            server_url, "KEYCLOAK_HOST", "http://keycloak:8080/auth/"
-        ),
-        username=_get_value(username, "KEYCLOAK_REALM_ADMIN_USER"),
-        password=_get_value(password, "KEYCLOAK_REALM_ADMIN_PASSWORD"),
-        realm_name=_get_value(realm_name, "KEYCLOAK_REALM_NAME"),
-        verify=_get_value(verify, "KEYCLOAK_VERIFY_HOST", False, True),
+    use_service_account = _get_value(
+        use_service_account, "KEYCLOAK_USE_SERVICE_ACCOUNT", False, True
     )
+    if use_service_account:
+        logger.debug("Using Service Account for Admin authentication")
+        admin = KeycloakAdmin(
+            server_url=_get_value(
+                server_url, "KEYCLOAK_HOST", "http://keycloak:8080/auth/"
+            ),
+            client_id=_get_value(client_id, "KEYCLOAK_CLIENT_ID"),
+            client_secret_key=_get_value(client_secret, "KEYCLOAK_CLIENT_SECRET"),
+            realm_name=_get_value(realm_name, "KEYCLOAK_REALM_NAME"),
+            verify=_get_value(verify, "KEYCLOAK_VERIFY_HOST", False, True),
+        )
+    else:
+        logger.debug("Using Custom User Account for Admin authentication")
+        admin = KeycloakAdmin(
+            server_url=_get_value(
+                server_url, "KEYCLOAK_HOST", "http://keycloak:8080/auth/"
+            ),
+            username=_get_value(username, "KEYCLOAK_REALM_ADMIN_USER"),
+            password=_get_value(password, "KEYCLOAK_REALM_ADMIN_PASSWORD"),
+            realm_name=_get_value(realm_name, "KEYCLOAK_REALM_NAME"),
+            verify=_get_value(verify, "KEYCLOAK_VERIFY_HOST", False, True),
+        )
+    return admin
 
 
 def _get_value(

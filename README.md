@@ -52,6 +52,7 @@ In order to successfully enable the callback for the token-generation and token-
 | `KEYCLOAK_VERIFY_HOST`          | Controls whether SSL certificates are verified for HTTPS requests. Default is set to `False`.              | "True"                                 |
 | `KEYCLOAK_REALM_ADMIN_USER`     | User name of the realm admin, if any action shall be performed as admin in your Flask/FastAPI application. | "admin"                                |
 | `KEYCLOAK_REALM_ADMIN_PASSWORD` | Password of the realm admin, if any action shall be performed as admin in your Flask/FastAPI application.  | "admin_password"                       |
+| `KEYCLOAK_USE_SERVICE_ACCOUNT`  | Whether a service account shall be used for admin operations instead of a custom user account with `KEYCLOAK_REALM_ADMIN_USER` and `KEYCLOAK_REALM_ADMIN_PASSWORD`. A service account in Keycloak is a special client configuration that allows applications to authenticate directly using client credentials (client ID and secret) without requiring a user login, enabling secure machine-to-machine (like a microservice, script, or backend job) API access. For more details, see the [official Keycloak documentation on service account authentication](https://www.keycloak.org/docs/latest/server_development/index.html#authenticating-with-a-service-account).  | "True"  |
 | `SKIP_ENV_CHECK`                | Optional. If set, skips the check for mandatory environment variables during startup.                      | "True"                                    |
 
 #### Note
