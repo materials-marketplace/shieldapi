@@ -110,8 +110,13 @@ def get_keycloak_admin(
             a directory containing certificates of trusted CA.
         use_service_account (Optional[bool]):
             Whether to use service account authentication (client_id/client_secret) instead of user
-            authentication (username/password). If missing, $KEYCLOAK_USE_SERVICE_ACCOUNT will be used,
-            defaults to False.
+            authentication (username/password). A service account in Keycloak is a special client configuration
+            that allows applications to authenticate directly using client credentials
+            (client ID and secret) without requiring a user login, enabling secure machine-to-machine
+            (like a microservice, script, or backend job) API access.
+            If missing, $KEYCLOAK_USE_SERVICE_ACCOUNT will be used, defaults to False.
+            See also:
+            https://www.keycloak.org/docs/latest/server_development/index.html#authenticating-with-a-service-account
 
     Returns:
         KeycloakAdmin:
