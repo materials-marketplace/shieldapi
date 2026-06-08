@@ -341,3 +341,15 @@ def get_current_user() -> str:
     user_id = user_info.get("sub", "")
     logger.debug(f"get_current_user: Current user ID {user_id}")
     return user_id
+
+
+def get_token_sub(token: str) -> str:
+    """Return the subject (user ID) from an introspected token.
+
+    Args:
+        token: Raw access token string.
+    """
+    token_info = get_keycloak_openid().introspect(token)
+    sub = token_info.get("sub", "")
+    logger.debug(f"get_token_sub: sub={sub}")
+    return sub

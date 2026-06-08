@@ -7,7 +7,13 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from shieldapi import logger
-from shieldapi.keycloak_utils import check_token_validity, get_keycloak_openid, login
+from shieldapi.keycloak_utils import (
+    check_role,
+    check_token_validity,
+    get_keycloak_openid,
+    get_token_sub,
+    login,
+)
 
 
 class Auth(str):
@@ -212,3 +218,30 @@ async def depends_auth_token_bearer(request: Request) -> Auth:
         "depends_auth_token_bearer: Calling AuthTokenBearer instance with request"
     )
     return await bearer(request)
+
+
+def require_self_or_role(role: str):
+    """Return a FastAPI dependency that allows access to the user themselves or holders of ``role``.
+
+    The dependency checks whether the requesting user has ``role`` (unconditional
+    access) or whether the token subject matches the ``user_id`` path parameter.
+    Returns the raw token string on success and raises HTTP 403 otherwise.
+
+    Args:
+        role: Role name that grants unconditional access.
+    """
+
+    async def dependency(request: Request) -> str:
+        token_with_bearer = await depends_auth_token_bearer(request)
+        raw_token = token_with_bearer.split(" ", 1)[1]
+        if check_role(raw_token, role):
+            return raw_token
+        user_id = request.path_params.get("user_id")
+        if user_id and get_token_sub(raw_token) == user_id:
+            return raw_token
+        raise HTTPException(
+            status_code=403,
+            detail=f"Requires '{role}' role or matching user_id",
+        )
+
+    return dependency

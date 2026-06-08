@@ -6,7 +6,12 @@ from typing import Any, Dict, List, Optional
 
 import pytest
 
-from shieldapi.keycloak_utils import _get_value, get_keycloak_admin, get_keycloak_openid
+from shieldapi.keycloak_utils import (
+    _get_value,
+    get_keycloak_admin,
+    get_keycloak_openid,
+    get_token_sub,
+)
 
 from .mock import register_mock
 
@@ -121,3 +126,10 @@ def test_keycloak_warning_bool(var, env_var, func, requests_mock):
         warning_raised(func, match, kwargs={"verify": var})
     else:
         no_warning_raised(func, kwargs={"verify": var})
+
+
+def test_get_token_sub(requests_mock):
+    """get_token_sub returns the 'sub' claim from the introspect response."""
+    register_mock(requests_mock)
+    result = get_token_sub("123")
+    assert result == "test-user-id"

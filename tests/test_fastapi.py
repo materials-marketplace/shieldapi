@@ -6,10 +6,14 @@ import pytest
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
-from shieldapi.frameworks.fastapi import AuthTokenBearer, depends_auth_token_bearer
+from shieldapi.frameworks.fastapi import (
+    AuthTokenBearer,
+    depends_auth_token_bearer,
+    require_self_or_role,
+)
 from shieldapi.keycloak_utils import make_auth_header
 
-from .mock import MESSAGE, register_mock
+from .mock import MESSAGE, register_mock, register_mock_non_admin
 
 
 @pytest.fixture(scope="function", params=["dependency", "helper"])
@@ -85,3 +89,47 @@ def test_fastapi_login(client, requests_mock):
     host_list = [resp.hostname for resp in requests_mock.request_history]
     assert host_list.count("example_keycloak.org") == 2  # called 2x keycloak-mock
     assert response.json() == MESSAGE
+
+
+def _make_self_or_role_app():
+    app = FastAPI()
+
+    @app.get("/users/{user_id}")
+    def get_user(user_id: str, token: str = Depends(require_self_or_role("admin"))):
+        return {"user_id": user_id}
+
+    return app
+
+
+def test_require_self_or_role_admin_access(requests_mock):
+    """Admin role grants access regardless of user_id path param."""
+    register_mock(requests_mock)
+    with TestClient(_make_self_or_role_app()) as client:
+        # INTROSPECT_RESPONSE has admin role and sub="test-user-id"
+        response = client.get(
+            "/users/other-user", headers={"Authorization": "Bearer 123"}
+        )
+    assert response.status_code == 200
+    assert response.json() == {"user_id": "other-user"}
+
+
+def test_require_self_or_role_self_access(requests_mock):
+    """Non-admin user can access a path whose user_id matches their own sub."""
+    register_mock_non_admin(requests_mock)
+    with TestClient(_make_self_or_role_app()) as client:
+        # INTROSPECT_NON_ADMIN has no admin role and sub="non-admin-user-id"
+        response = client.get(
+            "/users/non-admin-user-id", headers={"Authorization": "Bearer 123"}
+        )
+    assert response.status_code == 200
+    assert response.json() == {"user_id": "non-admin-user-id"}
+
+
+def test_require_self_or_role_forbidden(requests_mock):
+    """Non-admin user is blocked when user_id path param does not match their sub."""
+    register_mock_non_admin(requests_mock)
+    with TestClient(_make_self_or_role_app()) as client:
+        response = client.get(
+            "/users/other-user", headers={"Authorization": "Bearer 123"}
+        )
+    assert response.status_code == 403
