@@ -104,7 +104,7 @@ class BasicLoginCredentials(HTTPBasicCredentials):
             f"BasicLoginCredentials.token: Attempting login for username={self.username}"
         )
         token = login(self.username, self.password)
-        if len(token) == 2:
+        if isinstance(token, tuple):
             logger.error(
                 f"BasicLoginCredentials.token: Invalid credentials for username={self.username}"
             )
@@ -154,7 +154,7 @@ class BasicLogin(HTTPBasic):
             f"BasicLogin.__call__: Credentials extracted for username={log.username}"
         )
         token = login(log.username, log.password)
-        if len(token) == 2:
+        if isinstance(token, tuple):
             logger.error(
                 f"BasicLogin.__call__: Invalid credentials for username={log.username}"
             )

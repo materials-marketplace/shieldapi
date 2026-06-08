@@ -3,7 +3,7 @@
 import os
 import warnings
 from ast import literal_eval
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 from keycloak import KeycloakAdmin, KeycloakOpenID
 
@@ -40,28 +40,14 @@ def get_keycloak_openid(
     client_secret: Optional[str] = None,
     verify: Optional[bool] = None,
 ) -> KeycloakOpenID:
-    """
-    Creates a KeycloakOpenID instance using the provided parameters or environment variables.
+    """Create a KeycloakOpenID instance from parameters or environment variables.
 
     Kwargs:
-        server_url (Optional[str]):
-            The URL of the Keycloak server. If missing, $KEYCLOAK_HOST  or 'http://keycloak:8080/auth/' will be used.
-        realm_name (Optional[str]):
-            The name of the realm in Keycloak. If missing, $KEYCLOAK_REALM_NAME will be used.
-        client_id (Optional[str]):
-            The id of the client in Keycloak. If missing, $KEYCLOAK_CLIENT_ID or 'shieldapi' will be used.
-        client_secret (Optional[str]):
-            The client secret key for the client in Keycloak. If missing, $KEYCLOAK_CLIENT_SECRET will be used.
-        verify (Optional[bool]):
-            Controls whether SSL certificates are verified for HTTPS requests. If set to False, SSL
-            verification is disabled. If set to a string, it should be the path to a CA_BUNDLE file or
-            a directory containing certificates of trusted CA.
-
-    Returns:
-        KeycloakOpenID: An object for communicating with Keycloak via OpenID Connect.
-
-    Raises:
-        KeyError: If any required values are missing.
+        server_url: Keycloak server URL. Falls back to $KEYCLOAK_HOST.
+        realm_name: Realm name. Falls back to $KEYCLOAK_REALM_NAME.
+        client_id: OIDC client ID. Falls back to $KEYCLOAK_CLIENT_ID.
+        client_secret: Client secret. Falls back to $KEYCLOAK_CLIENT_SECRET.
+        verify: TLS verification. Falls back to $KEYCLOAK_VERIFY_HOST (default False).
     """
     logger.debug("Creating KeycloakOpenID instance")
     return KeycloakOpenID(
@@ -85,46 +71,18 @@ def get_keycloak_admin(
     verify: Optional[bool] = None,
     use_service_account: Optional[bool] = None,
 ) -> KeycloakAdmin:
-    """Create and return a KeycloakAdmin object with the provided credentials.
+    """Create a KeycloakAdmin instance from parameters or environment variables.
 
     Kwargs:
-        server_url (Optional[str]):
-            The URL of the Keycloak server. If missing, $KEYCLOAK_HOST or 'http://keycloak:8080/auth/' will be used.
-        username (Optional[str]):
-            The username to log in with. If missing, $KEYCLOAK_REALM_ADMIN_USER will be used.
-            Only used when use_service_account is False.
-        password (Optional[str]):
-            The password to log in with. If missing, $KEYCLOAK_REALM_ADMIN_PASSWORD will be used.
-            Only used when use_service_account is False.
-        client_id (Optional[str]):
-            The client ID for service account authentication. If missing, $KEYCLOAK_CLIENT_ID will be used.
-            Only used when use_service_account is True.
-        client_secret (Optional[str]):
-            The client secret for service account authentication. If missing, $KEYCLOAK_CLIENT_SECRET will be used.
-            Only used when use_service_account is True.
-        realm_name (Optional[str]):
-            The name of the realm in Keycloak. If missing, $KEYCLOAK_REALM_NAME will be used.
-        verify (Optional[bool]):
-            Controls whether SSL certificates are verified for HTTPS requests. If set to False, SSL
-            verification is disabled. If set to a string, it should be the path to a CA_BUNDLE file or
-            a directory containing certificates of trusted CA.
-        use_service_account (Optional[bool]):
-            Whether to use service account authentication (client_id/client_secret) instead of user
-            authentication (username/password). A service account in Keycloak is a special client configuration
-            that allows applications to authenticate directly using client credentials
-            (client ID and secret) without requiring a user login, enabling secure machine-to-machine
-            (like a microservice, script, or backend job) API access.
-            If missing, $KEYCLOAK_USE_SERVICE_ACCOUNT will be used, defaults to False.
-            See also:
-            https://www.keycloak.org/docs/latest/server_development/index.html#authenticating-with-a-service-account
-
-    Returns:
-        KeycloakAdmin:
-            An object with the provided credentials.
-
-    Raises:
-        KeyError:
-            If any required values are missing.
+        server_url: Keycloak server URL. Falls back to $KEYCLOAK_HOST.
+        username: Admin username. Falls back to $KEYCLOAK_REALM_ADMIN_USER.
+        password: Admin password. Falls back to $KEYCLOAK_REALM_ADMIN_PASSWORD.
+        client_id: Client ID for service account auth. Falls back to $KEYCLOAK_CLIENT_ID.
+        client_secret: Client secret for service account auth. Falls back to $KEYCLOAK_CLIENT_SECRET.
+        realm_name: Realm name. Falls back to $KEYCLOAK_REALM_NAME.
+        verify: TLS verification. Falls back to $KEYCLOAK_VERIFY_HOST (default False).
+        use_service_account: Use client credentials instead of user/password.
+            Falls back to $KEYCLOAK_USE_SERVICE_ACCOUNT (default False).
     """
     logger.debug("Creating KeycloakAdmin instance")
     use_service_account = _get_value(
@@ -161,38 +119,26 @@ def _get_value(
     default: Optional[Any] = None,
     boolean: Optional[bool] = False,
 ) -> Any:
-    """Get a value by following the assignment priority.
+    """Return param, falling back to env_var, then default.
 
-    Parameters take priority over environment variables and defaults.
-    An error is raised if no values are defined.
-
-    Args:
-        var (Any):
-            parameter passed to the respective upstream function.
-        env_var (str):
-            Name of the corresponding environmental variable.
-        default (Optional[Any]):
-            Default value when no others are provided
-        boolean (Optional[bool]):
-            Whether the expected values is a boolean
-    Returns:
-        Any: The value of the Python-object (preferred) or its respective env-variable.
-        The latter can also resolve into a `None`, if not set.
-
-    Raises:
-       UserWarning: If both the parameter and env-variable are set.
-       ValueError: If both the parameter and env-variable are None, or a boolean
+    Emits a UserWarning when both param and env_var are set (param wins).
+    Raises ValueError when all three are None.
+    Raises TypeError when boolean=True and the env_var value is not 'True'/'False'.
     """
     env = os.environ.get(env_var)
 
     if (param or isinstance(param, bool)) and env:
-        message = f"""Both the kwarg ({param}) and the env-variable for '{env_var}' ({env}) are assigned.
-        Note that the argument takes precedence over the env-variable."""
+        message = (
+            f"Both the kwarg ({param}) and the env-variable for '{env_var}' ({env}) are assigned. "
+            f"Note that the argument takes precedence over the env-variable."
+        )
         warnings.warn(UserWarning(message))
         logger.warning(message)
     elif param is None and env is None and default is None:
-        message = f"""Both the kwarg and the env-variable for '{env_var}' are None.
-        Please assign one of them to a value."""
+        message = (
+            f"Both the kwarg and the env-variable for '{env_var}' are None. "
+            f"Please assign one of them to a value."
+        )
         logger.error(message)
         raise ValueError(message)
 
@@ -215,37 +161,55 @@ def _get_value(
 
 
 def check_role(token: str, role: str) -> bool:
-    """Check if a token contains a certain role
+    """Return True if the token grants the given role.
+
+    Keycloak's token introspection endpoint returns roles in two locations:
+    - realm_access.roles  (realm-level roles)
+    - resource_access.<client>.roles  (client-level roles)
+
+    A flat top-level ``roles`` field is also checked for compatibility with
+    Keycloak deployments that include a custom protocol mapper.
 
     Args:
-        token (str): token from a user
-        role (str): role to be checked
-
-    Returns:
-        bool: whether the token contains the role
+        token: Raw access token string.
+        role: Role name to check.
     """
     logger.info(f"Checking role '{role}' for token")
     token_info = get_keycloak_openid().introspect(token)
-    if bool(token_info["active"]):
-        has_role = "roles" in token_info and role in token_info["roles"]
-        logger.debug(f"Token has role '{role}': {has_role}")
-        return has_role
+    if not bool(token_info.get("active")):
+        logger.debug("Token is inactive")
+        return False
+
+    # Flat roles field (custom protocol mapper or older Keycloak configs)
+    if role in token_info.get("roles", []):
+        logger.debug(f"Role '{role}' found in flat roles field")
+        return True
+
+    # Realm-level roles
+    if role in token_info.get("realm_access", {}).get("roles", []):
+        logger.debug(f"Role '{role}' found in realm_access.roles")
+        return True
+
+    # Client-level roles across all resource_access entries
+    for client, client_data in token_info.get("resource_access", {}).items():
+        if role in client_data.get("roles", []):
+            logger.debug(f"Role '{role}' found in resource_access.{client}.roles")
+            return True
+
+    logger.debug(f"Role '{role}' not found in token")
     return False
 
 
 def check_token_validity(
     access_token: str, validate_with_auth_server: Optional[bool] = True
 ) -> bool:
-    """Check if the given access token is valid.
+    """Return True if the access token is currently valid.
 
     Args:
-        access_token: str
-            The access token to check.
-        validate_with_auth_server: boolean
-            Indicates whether the validation is done through the server.
-
-    Returns:
-        bool: Whether the token is valid.
+        access_token: The access token to check.
+        validate_with_auth_server: When True (default), validates via Keycloak
+            introspection. When False, validates the JWT signature locally
+            (requires JWKS key configuration).
     """
     logger.info("Checking token validity")
     keycloak_openid = get_keycloak_openid()
@@ -253,13 +217,13 @@ def check_token_validity(
     valid = False
     if validate_with_auth_server:
         token_info = keycloak_openid.introspect(access_token)
-        valid = bool(token_info["active"])
+        valid = bool(token_info.get("active"))
     else:
         try:
             get_keycloak_openid().decode_token(access_token, validate=True)
             valid = True
         except Exception as e:
-            logger.warning(f"AuthTokenBearer.__call__: Token validation failed: {e}")
+            logger.warning(f"check_token_validity: Token validation failed: {e}")
     logger.debug(f"Token validity: {valid}")
     return valid
 
@@ -271,39 +235,18 @@ def check_useraccount_access(
     client_id: Optional[str] = None,
     client_secret: Optional[str] = None,
     verify: Optional[bool] = None,
-) -> str:
-    """
-    Check if an access token has the 'openid' scope.
+) -> Tuple[str, int]:
+    """Return (message, status_code) indicating whether the token has 'openid' scope.
 
     Args:
-        access_token: str
-            The access token to check.
-    Kwargs:
-        server_url (Optional[str]):
-            The URL of the Keycloak server. If not provided, the value from the environment variable
-            KEYCLOAK_HOST will be used.
-        realm_name (Optional[str]):
-            The name of the realm in Keycloak. If not provided, the value from the environment variable
-            KEYCLOAK_REALM_NAME will be used.
-        client_id (Optional[str]):
-            The id of the client in Keycloak. If not provided, the value from the environment
-            variable KEYCLOAK_CLIENT_ID will be used.
-        client_secret (Optional[str]):
-            The client secret key for the client in Keycloak. If not provided, the value from the environment
-            variable KEYCLOAK_CLIENT_SECRET will be used.
-        verify (Optional[bool]):
-            Controls whether SSL certificates are verified for HTTPS requests. If set to False, SSL
-            verification is disabled. If set to a string, it should be the path to a CA_BUNDLE file or
-            a directory containing certificates of trusted CA.
-
-    Returns:
-        str: A string indicating whether or not the access token has the 'openid' scope.
+        access_token: The access token to check.
+    Kwargs: See get_keycloak_openid for remaining parameters.
     """
     logger.info("Checking user account access")
     token_info = get_keycloak_openid(
         server_url, realm_name, client_id, client_secret, verify
     ).introspect(access_token)
-    granted_scope = token_info.json()["scope"].split()
+    granted_scope = token_info.get("scope", "").split()
     if "openid" not in granted_scope:
         message = "OpenID scope was not granted"
         logger.warning(message)
@@ -321,50 +264,28 @@ def login(
     client_id: Optional[str] = None,
     client_secret: Optional[str] = None,
     verify: Optional[bool] = None,
-) -> str:
-    """
-    Logs in the user with the given username and password and generates an access token.
+) -> Union[str, Tuple[int, str]]:
+    """Authenticate with Keycloak and return a Bearer token string.
+
+    Returns ``"Bearer <access_token>"`` on success, or ``(status_code, message)``
+    on failure.
 
     Args:
-        username (Optional[str]):
-            The username to authenticate with.
-        password (Optional[str]):
-            The password to authenticate with.
-    Kwargs:
-        server_url (Optional[str]):
-            The URL of the Keycloak server. If not provided, the value from the environment variable
-            KEYCLOAK_HOST will be used.
-        realm_name (Optional[str]):
-            The name of the realm in Keycloak. If not provided, the value from the environment variable
-            KEYCLOAK_REALM_NAME will be used.
-        client_id (Optional[str]):
-            The id of the client in Keycloak. If not provided, the value from the environment
-            variable KEYCLOAK_CLIENT_ID will be used.
-        client_secret (Optional[str]):
-            The client secret key for the client in Keycloak. If not provided, the value from the environment
-            variable KEYCLOAK_CLIENT_SECRET will be used.
-        verify (Optional[Union[bool, str]]):
-            Controls whether SSL certificates are verified for HTTPS requests. If set to False, SSL
-            verification is disabled. If set to a string, it should be the path to a CA_BUNDLE file or
-            a directory containing certificates of trusted CA.
-
-    Returns:
-        str:
-            If successful, returns a string representing the access token. Otherwise, returns
-            a tuple containing the status code and an error message.
+        username: Keycloak username.
+        password: Keycloak password.
+    Kwargs: See get_keycloak_openid for remaining parameters.
     """
     logger.info("Logging in user")
     token = get_keycloak_openid(
         server_url, realm_name, client_id, client_secret, verify
     ).token(username=username, password=password)
-    if not token.get("access_token") and token.get("token_type"):
+    if not token.get("access_token") or not token.get("token_type"):
         message = "Token could not be generated. Please contact the admin."
         logger.error(message)
         return 401, message
-    else:
-        token_str = f"{token.get('token_type')} {token.get('access_token')}"
-        logger.info("Token generated successfully")
-        return token_str
+    token_str = f"{token.get('token_type')} {token.get('access_token')}"
+    logger.info("Token generated successfully")
+    return token_str
 
 
 def make_auth_header(
@@ -375,38 +296,13 @@ def make_auth_header(
     client_id: Optional[str] = None,
     client_secret: Optional[str] = None,
     verify: Optional[bool] = None,
-) -> Union[int, Tuple[int, str]]:
-    """
-    Logs into the Keycloak server and generates an access token using the given credentials.
+) -> Union[Dict[str, str], Tuple[int, str]]:
+    """Return an ``Authorization`` header dict, or ``(status_code, message)`` on failure.
 
     Args:
-        username (Optional[str]):
-            The username to authenticate with.
-        password (Optional[str]):
-            The password to authenticate with.
-    Kwargs:
-        server_url (Optional[str]):
-            The URL of the Keycloak server. If not provided, the value from the environment variable
-            KEYCLOAK_HOST will be used.
-        realm_name (Optional[str]):
-            The name of the realm in Keycloak. If not provided, the value from the environment variable
-            KEYCLOAK_REALM_NAME will be used.
-        client_id (Optional[str]):
-            The id of the client in Keycloak. If not provided, the value from the environment
-            variable KEYCLOAK_CLIENT_ID will be used.
-        client_secret (Optional[str]):
-            The client secret key for the client in Keycloak. If not provided, the value from the environment
-            variable KEYCLOAK_CLIENT_SECRET will be used.
-        verify (Optional[bool]):
-            Controls whether SSL certificates are verified for HTTPS requests. If set to False, SSL
-            verification is disabled. If set to a string, it should be the path to a CA_BUNDLE file or
-            a directory containing certificates of trusted CA.
-
-    Returns:
-        Union[int, Tuple[int, str]]:
-            If successful, a string containing the access token in the form of "{token_type} {access_token}".
-            Otherwise, a tuple containing a status code and an error message.
-
+        username: Keycloak username.
+        password: Keycloak password.
+    Kwargs: See get_keycloak_openid for remaining parameters.
     """
     logger.info("Making authentication header")
     credentials = login(
@@ -418,25 +314,18 @@ def make_auth_header(
         client_secret,
         verify,
     )
-    if type(credentials) == str:
+    if isinstance(credentials, str):
         logger.info("Authentication header created successfully")
         return {"Authorization": credentials}
-    else:
-        logger.error("Failed to create authentication header")
-        return credentials
+    logger.error("Failed to create authentication header")
+    return credentials
 
 
-def get_userinfo(token) -> dict:
-    """
-    Returns the user information from the access token.
+def get_userinfo(token: str) -> dict:
+    """Return the userinfo claims from Keycloak for the given access token.
 
     Args:
-        token: str
-            The access token of the user.
-
-    Returns:
-        dict:
-            The user information.
+        token: Raw access token string.
     """
     userinfo = get_keycloak_openid().userinfo(token)
     logger.debug(f"get_userinfo: Retrieved user info {userinfo}")
@@ -444,13 +333,7 @@ def get_userinfo(token) -> dict:
 
 
 def get_current_user() -> str:
-    """
-    Get the current logged in user.
-
-    Returns:
-        str:
-            The user ID.
-    """
+    """Return the Keycloak user ID (``sub``) for the current request token."""
     user_info = get_userinfo()
     if not user_info:
         logger.warning("get_current_user: No user info available")

@@ -1,4 +1,4 @@
-"""Pytest fixtures for regitering mock responses."""
+"""Pytest fixtures for registering mock responses."""
 
 import os
 
@@ -15,18 +15,41 @@ VARIABLES = dict(
     KEYCLOAK_VERIFY_HOST="True",
 )
 
+# Realistic Keycloak introspect payload — roles live under realm_access and
+# resource_access, not at the top level.
+INTROSPECT_RESPONSE = dict(
+    active=True,
+    realm_access={"roles": ["default-roles-myrealm", "app-user", "admin"]},
+    resource_access={
+        "testshield": {"roles": ["admin", "user"]},
+        "account": {"roles": ["manage-account", "view-profile"]},
+    },
+    scope="profile email client_roles",
+    preferred_username="admin",
+    sub="test-user-id",
+)
+
+INTROSPECT_NON_ADMIN = dict(
+    active=True,
+    realm_access={"roles": ["default-roles-myrealm", "app-user"]},
+    resource_access={
+        "testshield": {"roles": ["user"]},
+        "account": {"roles": ["manage-account", "view-profile"]},
+    },
+    scope="profile email client_roles",
+    preferred_username="user1",
+    sub="non-admin-user-id",
+)
+
+INTROSPECT_INACTIVE = dict(active=False)
+
 
 def register_mock(requests_mock: Mocker, var: dict = VARIABLES) -> None:
-    """
-    Register mock HTTP responses for a Keycloak server using the requests_mock library.
+    """Register mock HTTP responses for a Keycloak server.
 
     Args:
-    - requests_mock: An instance of the Mocker class from the requests_mock library.
-    - var: A dictionary containing environment variables used to configure the Keycloak server.
-      It must contain the following keys:
-      - KEYCLOAK_HOST: the URL of the Keycloak server (e.g., "http://example_keycloak.org/auth/").
-      - KEYCLOAK_REALM_NAME: the name of the Keycloak realm to use.
-      - KEYCLOAK_CLIENT_SECRET: the client secret for the Keycloak client.
+        requests_mock: requests_mock Mocker instance.
+        var: Environment variable overrides (defaults to VARIABLES).
     """
     os.environ.update(**var)
     realm_name = var["KEYCLOAK_REALM_NAME"]
@@ -47,20 +70,40 @@ def register_mock(requests_mock: Mocker, var: dict = VARIABLES) -> None:
         dict(
             path=f"realms/{realm_name}/protocol/openid-connect/token/introspect",
             method="post",
-            json=dict(
-                active=True,
-                roles=["admin"],
-                scope="profile email client_roles",
-            ),
+            json=INTROSPECT_RESPONSE,
         ),
         dict(
             path=f"realms/{realm_name}/protocol/openid-connect/userinfo",
             method="post",
             json=dict(
-                sub="123",
+                sub="test-user-id",
                 email_verified=False,
-                roles=["admin"],
                 preferred_username="admin",
+            ),
+        ),
+    ]
+    for route in responses:
+        path = var["KEYCLOAK_HOST"] + route["path"]
+        requests_mock.register_uri(route["method"], path, json=route["json"])
+
+
+def register_mock_non_admin(requests_mock: Mocker, var: dict = VARIABLES) -> None:
+    """Register mock responses for a non-admin user."""
+    os.environ.update(**var)
+    realm_name = var["KEYCLOAK_REALM_NAME"]
+    responses = [
+        dict(
+            path=f"realms/{realm_name}/protocol/openid-connect/token/introspect",
+            method="post",
+            json=INTROSPECT_NON_ADMIN,
+        ),
+        dict(
+            path=f"realms/{realm_name}/protocol/openid-connect/userinfo",
+            method="post",
+            json=dict(
+                sub="non-admin-user-id",
+                email_verified=False,
+                preferred_username="user1",
             ),
         ),
     ]
