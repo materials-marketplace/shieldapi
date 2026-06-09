@@ -8,12 +8,24 @@ from fastapi.testclient import TestClient
 
 from shieldapi.frameworks.fastapi import (
     AuthTokenBearer,
+    OptionalAuthTokenBearer,
     depends_auth_token_bearer,
+    get_optional_user_id,
+    get_optional_user_roles,
+    get_user_id,
+    get_user_roles,
+    is_admin,
+    is_optional_admin,
     require_self_or_role,
 )
 from shieldapi.keycloak_utils import make_auth_header
 
-from .mock import MESSAGE, register_mock, register_mock_non_admin
+from .mock import (
+    MESSAGE,
+    register_mock,
+    register_mock_inactive,
+    register_mock_non_admin,
+)
 
 
 @pytest.fixture(scope="function", params=["dependency", "helper"])
@@ -133,3 +145,110 @@ def test_require_self_or_role_forbidden(requests_mock):
             "/users/other-user", headers={"Authorization": "Bearer 123"}
         )
     assert response.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# OptionalAuthTokenBearer
+# ---------------------------------------------------------------------------
+
+
+def _make_optional_bearer_app():
+    optional = OptionalAuthTokenBearer()
+
+    app = FastAPI()
+
+    @app.get("/resource")
+    async def resource(token=Depends(optional)):
+        return {"anonymous": token is None}
+
+    return app
+
+
+def test_optional_bearer_no_token(requests_mock):
+    """No Authorization header returns None from the dependency (anonymous access)."""
+    register_mock(requests_mock)
+    with TestClient(_make_optional_bearer_app()) as client:
+        response = client.get("/resource")
+    assert response.status_code == 200
+    assert response.json() == {"anonymous": True}
+
+
+def test_optional_bearer_valid_token(requests_mock):
+    """Valid Bearer token passes through; the dependency returns a non-None value."""
+    register_mock(requests_mock)
+    with TestClient(_make_optional_bearer_app()) as client:
+        response = client.get("/resource", headers={"Authorization": "Bearer 123"})
+    assert response.status_code == 200
+    assert response.json() == {"anonymous": False}
+
+
+def test_optional_bearer_invalid_token(requests_mock):
+    """Inactive/expired token raises HTTP 401 even for the optional bearer."""
+    register_mock_inactive(requests_mock)
+    with TestClient(
+        _make_optional_bearer_app(), raise_server_exceptions=False
+    ) as client:
+        response = client.get("/resource", headers={"Authorization": "Bearer expired"})
+    assert response.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Generic dependency chain
+# ---------------------------------------------------------------------------
+
+
+def _make_dep_chain_app():
+    app = FastAPI()
+
+    @app.get("/whoami")
+    def whoami(
+        user_id=Depends(get_user_id),
+        roles=Depends(get_user_roles),
+        admin=Depends(is_admin),
+    ):
+        return {"user_id": user_id, "roles": roles, "admin": admin}
+
+    @app.get("/optional")
+    def optional_whoami(
+        user_id=Depends(get_optional_user_id),
+        roles=Depends(get_optional_user_roles),
+        admin=Depends(is_optional_admin),
+    ):
+        return {"user_id": user_id, "roles": roles, "admin": admin}
+
+    return app
+
+
+def test_dep_chain_authenticated(requests_mock):
+    """Authenticated request resolves correct user_id, shieldapi roles, and admin flag."""
+    register_mock(requests_mock)
+    with TestClient(_make_dep_chain_app()) as client:
+        response = client.get("/whoami", headers={"Authorization": "Bearer 123"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["user_id"] == "test-user-id"
+    assert "admin" in data["roles"]
+    assert data["admin"] is True
+
+
+def test_dep_chain_optional_anonymous(requests_mock):
+    """Anonymous request yields None user_id, empty roles, and admin=False."""
+    register_mock(requests_mock)
+    with TestClient(_make_dep_chain_app()) as client:
+        response = client.get("/optional")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["user_id"] is None
+    assert data["roles"] == []
+    assert data["admin"] is False
+
+
+def test_dep_chain_optional_authenticated(requests_mock):
+    """Optional endpoints resolve identically to required ones for authenticated users."""
+    register_mock(requests_mock)
+    with TestClient(_make_dep_chain_app()) as client:
+        response = client.get("/optional", headers={"Authorization": "Bearer 123"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["user_id"] == "test-user-id"
+    assert data["admin"] is True

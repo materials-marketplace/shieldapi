@@ -23,6 +23,7 @@ INTROSPECT_RESPONSE = dict(
     resource_access={
         "testshield": {"roles": ["admin", "user"]},
         "account": {"roles": ["manage-account", "view-profile"]},
+        "shieldapi": {"roles": ["admin"]},
     },
     scope="profile email client_roles",
     preferred_username="admin",
@@ -85,6 +86,17 @@ def register_mock(requests_mock: Mocker, var: dict = VARIABLES) -> None:
     for route in responses:
         path = var["KEYCLOAK_HOST"] + route["path"]
         requests_mock.register_uri(route["method"], path, json=route["json"])
+
+
+def register_mock_inactive(requests_mock: Mocker, var: dict = VARIABLES) -> None:
+    """Register mock that returns an inactive (expired) introspection result."""
+    os.environ.update(**var)
+    realm_name = var["KEYCLOAK_REALM_NAME"]
+    path = (
+        var["KEYCLOAK_HOST"]
+        + f"realms/{realm_name}/protocol/openid-connect/token/introspect"
+    )
+    requests_mock.register_uri("post", path, json=INTROSPECT_INACTIVE)
 
 
 def register_mock_non_admin(requests_mock: Mocker, var: dict = VARIABLES) -> None:

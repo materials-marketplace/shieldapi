@@ -1,8 +1,9 @@
 """Dependencies and classes for shieldapi in FastAPI."""
 
 import os
+from typing import Optional
 
-from fastapi import HTTPException, Request
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPBasic, HTTPBasicCredentials, HTTPBearer
 from pydantic import BaseModel
 
@@ -14,6 +15,9 @@ from shieldapi.keycloak_utils import (
     get_token_sub,
     login,
 )
+
+_ADMIN_ROLE = "admin"
+_ROLES_PATH = ("resource_access", "shieldapi", "roles")
 
 
 class Auth(str):
@@ -66,6 +70,31 @@ class AuthTokenBearer(HTTPBearer):
 
         if not check_token_validity(auth.credentials):
             logger.warning(f"AuthTokenBearer.__call__: Token validation failed")
+            raise HTTPException(status_code=401, detail="Token validation failed")
+        return f"Bearer {auth.credentials}"
+
+
+class OptionalAuthTokenBearer(HTTPBearer):
+    """Like AuthTokenBearer but returns None for requests with no Authorization header.
+
+    A present but invalid/expired token still raises HTTP 401 so callers cannot
+    accidentally downgrade to anonymous access with a stale credential.
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(auto_error=False, **kwargs)
+
+    async def __call__(self, request: Request) -> Optional[Auth]:
+        auth = await super().__call__(request=request)
+        if auth is None:
+            return None
+        if not auth.credentials:
+            raise HTTPException(
+                status_code=401,
+                detail="An access token is expected but has not been provided",
+            )
+        if not check_token_validity(auth.credentials):
+            logger.warning("OptionalAuthTokenBearer.__call__: Token validation failed")
             raise HTTPException(status_code=401, detail="Token validation failed")
         return f"Bearer {auth.credentials}"
 
@@ -245,3 +274,88 @@ def require_self_or_role(role: str):
         )
 
     return dependency
+
+
+# ---------------------------------------------------------------------------
+# Generic Keycloak FastAPI dependency chain
+#
+# These can be imported directly into any FastAPI service that uses shieldapi:
+#
+#   from shieldapi.frameworks.fastapi import (
+#       get_access_token, get_userinfo, get_user_id, get_user_roles, is_admin,
+#       get_optional_access_token, get_optional_userinfo,
+#       get_optional_user_id, get_optional_user_roles, is_optional_admin,
+#   )
+# ---------------------------------------------------------------------------
+
+
+def get_access_token(request: Request) -> str:
+    """Extract the raw Bearer token string from the Authorization header, or '' if absent."""
+    auth_header = request.headers.get("Authorization", default="")
+    if not auth_header or "Bearer" not in auth_header:
+        return ""
+    return auth_header.split()[1]
+
+
+def get_userinfo(token: str = Depends(get_access_token)) -> dict:
+    """Introspect the token against Keycloak and return the userinfo dict."""
+    return get_keycloak_openid().introspect(token)
+
+
+def get_user_roles(userinfo: dict = Depends(get_userinfo)):
+    """Return the list of shieldapi realm roles from the introspection result."""
+    d = userinfo
+    for key in _ROLES_PATH:
+        d = d.get(key, {})
+    return d if isinstance(d, list) else []
+
+
+def get_user_id(userinfo: dict = Depends(get_userinfo)) -> str:
+    """Return the Keycloak subject (user UUID) from the introspection result."""
+    return userinfo.get("sub")
+
+
+def is_admin(roles=Depends(get_user_roles)) -> bool:
+    """Return True when the caller holds the 'admin' shieldapi role."""
+    return _ADMIN_ROLE in roles
+
+
+def get_optional_access_token(request: Request) -> Optional[str]:
+    """Like get_access_token but returns None when no Authorization header is present."""
+    auth_header = request.headers.get("Authorization", default="")
+    if not auth_header or "Bearer" not in auth_header:
+        return None
+    return auth_header.split()[1]
+
+
+def get_optional_userinfo(
+    token: Optional[str] = Depends(get_optional_access_token),
+) -> Optional[dict]:
+    """Introspect the token when present; return None for anonymous requests."""
+    if token is None:
+        return None
+    return get_keycloak_openid().introspect(token)
+
+
+def get_optional_user_roles(userinfo: Optional[dict] = Depends(get_optional_userinfo)):
+    """Return roles for an authenticated caller, or [] for anonymous."""
+    if userinfo is None:
+        return []
+    d = userinfo
+    for key in _ROLES_PATH:
+        d = d.get(key, {})
+    return d if isinstance(d, list) else []
+
+
+def get_optional_user_id(
+    userinfo: Optional[dict] = Depends(get_optional_userinfo),
+) -> Optional[str]:
+    """Return the subject UUID for an authenticated caller, or None for anonymous."""
+    if userinfo is None:
+        return None
+    return userinfo.get("sub")
+
+
+def is_optional_admin(roles=Depends(get_optional_user_roles)) -> bool:
+    """Return True when the caller holds the 'admin' role; False for anonymous."""
+    return _ADMIN_ROLE in roles
